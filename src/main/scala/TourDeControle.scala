@@ -3,41 +3,75 @@ import akka.actor.typed.scaladsl.Behaviors
 import scala.collection.immutable.Queue
 
 object TourDeControle {
-  def apply(piste: ActorRef[Message]): Behavior[Message] = attenteDemande(piste, Queue.empty, pisteLibre = true)
 
-  def attenteDemande(piste: ActorRef[Message], file: Queue[(String, ActorRef[Message])], pisteLibre: Boolean): Behavior[Message] = Behaviors.receive { (context, message) =>
+  def apply(piste: ActorRef[Message]): Behavior[Message] =
+    // On alloue une capacité de stockage (stash) pour les messages reçus pendant le redémarrage
+    Behaviors.withStash(100) { buffer =>
+      Behaviors.setup { context =>
+        context.log.info("TOUR : Initialisation/Redémarrage. Synchronisation avec la piste...")
+        // On interroge la piste pour recaler l'état interne
+        piste ! DemandeEtatPiste(context.self)
+
+        def initialisation(): Behavior[Message] = Behaviors.receiveMessage {
+          case EtatPisteActuel(libre) =>
+            context.log.info(s"TOUR : Synchronisé ! État de la piste : ${if (libre) "LIBRE" else "OCCUPÉE"}")
+            // On débloque les messages mis en tampon pendant le redémarrage
+            buffer.unstashAll(attenteDemande(piste, Queue.empty, libre))
+
+          case message =>
+            // Si une demande arrive avant la fin de la synchronisation, on la garde en tampon
+            context.log.info("TOUR : Synchronisation en cours, mise en tampon d'un message...")
+            buffer.stash(message)
+            Behaviors.same
+        }
+
+        initialisation()
+      }
+    }
+
+  def attenteDemande(
+                      piste: ActorRef[Message],
+                      file: Queue[(String, ActorRef[Message])],
+                      pisteLibre: Boolean
+                    ): Behavior[Message] = Behaviors.receive { (context, message) =>
     message match {
-      case DemandeAtterrissage(id, replyTo) =>
+
+      case DemandeAtterrissage(id, avionRef) =>
         if (pisteLibre) {
           context.log.info(s"TOUR : Piste libre, demande de réservation pour $id...")
-          piste ! ReserverPour(id, context.self)
-          replyTo ! AutorisationAccordee // <--- LA LIGNE AJOUTÉE POUR LES TESTS
+          piste ! ReserverPour(id, context.self, avionRef)
           attenteDemande(piste, file, pisteLibre = false)
         } else {
           context.log.warn(s"TOUR : Conflit ! Piste indisponible, $id placé en attente.")
-          replyTo ! MiseEnAttente
-          attenteDemande(piste, file.enqueue((id, replyTo)), pisteLibre)
+          avionRef ! MiseEnAttente
+          // Gestion FIFO de la file d'attente
+          attenteDemande(piste, file.enqueue((id, avionRef)), pisteLibre)
         }
 
-      case ReservationAccordee(id) =>
-        context.log.info(s"TOUR : Autorisation envoyée à $id.")
+      case ReservationAccordee(id, avionRef) =>
+        context.log.info(s"TOUR : Réservation validée. Autorisation envoyée à $id.")
+        avionRef ! AutorisationAccordee
         Behaviors.same
 
       case FinAtterrissage(id) =>
-        context.log.info(s"TOUR : Fin d'atterrissage confirmée pour $id. Libération de la piste.")
+        context.log.info(s"TOUR : Libération de la piste confirmée pour $id.")
         piste ! Liberer(id)
 
         if (file.nonEmpty) {
-          val ((prochainAvion, ref), nouvelleFile) = file.dequeue
-          context.log.info(s"TOUR : On rappelle l'avion en file : $prochainAvion")
-          piste ! ReserverPour(prochainAvion, context.self)
-          ref ! AutorisationAccordee
+          val ((prochainAvion, refSuivant), nouvelleFile) = file.dequeue
+          context.log.info(s"TOUR : Rappel du prochain avion en file : $prochainAvion")
+          piste ! ReserverPour(prochainAvion, context.self, refSuivant)
           attenteDemande(piste, nouvelleFile, pisteLibre = false)
         } else {
           attenteDemande(piste, file, pisteLibre = true)
         }
 
-      case _ => Behaviors.same
+      case DeclencherCrashTest =>
+        context.log.error("TOUR : Déclenchement d'un crash volontaire pour test de supervision.")
+        throw new RuntimeException("Crash simulé")
+
+      case _ =>
+        Behaviors.same
     }
   }
 }
