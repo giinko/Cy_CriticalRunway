@@ -1,57 +1,25 @@
-# ✈️ Akka Airport : Simulation de Système Distribué Critique
+# ✈️ Akka Airport : Simulation de système distribué critique
 
-## 📋 Présentation du Projet
-Ce projet est une simulation haute fiabilité d'un système d'atterrissage aéroportuaire. Il utilise le framework **Akka Typed** et le langage **Scala** pour modéliser un environnement distribué où la sécurité est primordiale.
+## Présentation
+Ce projet simule un système d'atterrissage aéroportuaire critique avec **Akka Typed** et **Scala**.
+La partie Akka/Scala repose sur trois acteurs principaux :
 
-L'objectif est de combiner la puissance du modèle d'acteurs pour la simulation et la rigueur des **réseaux de Pétri** pour la vérification formelle, garantissant ainsi un système sans interblocages (deadlocks) ni violations d'invariants.
+- **Avion** : gère son cycle de vie (`En vol`, `En attente`, `Autorisé`, `Atterrissage en cours`, `Au sol`)
+- **Tour de contrôle** : coordonne l'accès à la piste et maintient une file d'attente FIFO
+- **Piste** : ressource critique avec exclusion mutuelle stricte (`Libre`, `Réservée`, `Occupée`)
 
----
+## Choix techniques principaux
+- Piste modélisée comme **acteur séparé**
+- Gestion **FIFO** des demandes concurrentes
+- **Délai réel de manœuvre** pour rendre la concurrence crédible
+- **Supervision** simple avec redémarrage de la tour de contrôle
+- **Tests unitaires + tests d'intégration**
 
-## 🏗️ Architecture du Système
-L'application repose sur une architecture décentralisée et résiliente :
+## Commandes utiles
+- Lancer la simulation : `sbt run`
+- Lancer les tests : `sbt test`
+- Lancer l'analyseur formel : `sbt "runMain verification.AnalyseurPetri"`
 
-* **Avion** : Acteur autonome gérant son cycle de vie (En vol, En attente, Atterrissage, Au sol). Il simule un délai de manœuvre réel pour tester la concurrence.
-* **Tour de Contrôle** : Coordinateur central. Elle gère une file d'attente FIFO (First-In-First-Out) pour assurer un traitement équitable des demandes.
-* **Piste** : Représente la ressource critique. Elle garantit l'exclusion mutuelle grâce à une machine à états stricte (Libre, Réservée, Occupée).
-* **Superviseur** : Garantit la tolérance aux pannes. Il utilise des stratégies de redémarrage et un système de mise en tampon (Stash) pour ne perdre aucun message en cas de crash d'un composant.
-
----
-
-## 🔍 Vérification Formelle & Logique LTL
-Le système est validé par la logique temporelle linéaire (LTL) pour assurer le respect des propriétés critiques :
-
-### Propriétés de Sûreté (Safety)
-* **Exclusion Mutuelle** : Un seul avion peut occuper la piste physiquement à la fois.
-    * Formule : `[] (pisteOccupee <= 1)`
-* **Intégrité** : La piste est toujours dans exactement un état valide.
-
-### Propriétés de Vivacité (Liveness)
-* **Absence de Famine** : Toute demande d'atterrissage finit par recevoir une autorisation si la piste se libère.
-* **Progression** : Le système ne peut pas rester bloqué indéfiniment ; chaque avion finit par atteindre son état final "Au sol".
-
----
-
-## 🛠️ Analyse par Réseau de Pétri
-Le projet inclut un outil de vérification personnalisé (`AnalyseurPetri.scala`). Cet analyseur explore l'intégralité de l'espace d'états du modèle pour prouver :
-* **Bornage** : Les ressources (jetons) sont limitées et contrôlées.
-* **Absence de Deadlock** : Chaque chemin d'exécution mène à une progression du système.
-* **Conformité** : Le comportement du code Akka correspond strictement au modèle mathématique.
-
----
-
-## 🧪 Robustesse & Tests
-* **Tolérance aux Pannes** : Un scénario de crash volontaire est inclus pour démontrer la capacité de la Tour de Contrôle à se resynchroniser avec la Piste.
-* **Validation unitaire** : Une suite de tests (`AeroportSpec.scala`) vérifie automatiquement la logique de file d'attente et les priorités d'accès.
-
----
-
-## 🚀 Mise en route
-
-### Prérequis
-* JDK 11 ou supérieur
-* SBT (Scala Build Tool)
-
-### Commandes utiles
-* **Lancer la simulation** : `sbt run`
-* **Exécuter les tests** : `sbt test`
-* **Lancer l'analyseur formel** : `sbt "runMain verification.AnalyseurPetri"`
+## Remarque sur la supervision
+Le redémarrage de la tour illustre une **resynchronisation avec l'état de la piste**.
+Il s'agit d'une reprise simple et maîtrisée, pas d'une persistance complète de tout l'état métier.
