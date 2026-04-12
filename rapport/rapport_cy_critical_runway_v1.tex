@@ -87,7 +87,7 @@
 
     \begin{minipage}{0.9\textwidth}
         \small
-        \textbf{Résumé.} Ce projet propose la conception d'un système distribué critique de gestion d'atterrissage à l'aide d'Akka Typed et Scala. Le système est modélisé autour de trois acteurs principaux --- \emph{Avion}, \emph{Tour de contrôle} et \emph{Piste} --- puis abstrait au moyen d'un réseau de Pétri afin d'explorer son espace d'états et de vérifier plusieurs propriétés de sûreté et de vivacité. Le rapport présente l'architecture retenue, les choix d'implémentation, la formalisation LTL des garanties attendues, ainsi que la stratégie de validation par tests et analyse formelle.
+        \textbf{Résumé.} Ce projet propose la conception d'un système distribué critique de gestion d'atterrissage à l'aide d'Akka Typed et Scala. Le système est modélisé autour de trois acteurs principaux --- \emph{Avion}, \emph{Tour de contrôle} et \emph{Piste} --- puis abstrait au moyen d'un réseau de Pétri afin d'explorer son espace d'états et de vérifier plusieurs propriétés de sûreté et de vivacité. Le rapport présente l'architecture retenue, les choix d'implémentation, un cadrage théorique sur la vérification formelle, la formalisation LTL des garanties attendues, ainsi que la stratégie de validation par tests, comparaison avec le réseau de Pétri et analyse formelle.
     \end{minipage}
 \end{titlepage}
 
@@ -134,6 +134,57 @@ Dans notre cas, cela revient à garantir au minimum les points suivants :
     \item les avions finissent par atteindre l'état \emph{Au sol} dans le scénario nominal ;
     \item le modèle formel ne présente pas de deadlock non terminal.
 \end{itemize}
+
+
+\section{Cadre théorique et état de l'art}
+
+Cette section vise à replacer le projet dans un cadre méthodologique plus large, conformément au sujet, qui demande explicitement un \textbf{état de l'art} sur la vérification formelle et les réseaux de Pétri. Notre objectif n'est pas de faire une revue exhaustive, mais de montrer les concepts de référence qui justifient les choix retenus dans ce projet.
+
+\subsection{Vérification formelle des systèmes critiques}
+
+La vérification formelle regroupe les méthodes qui permettent de raisonner rigoureusement sur le comportement d'un système, non plus seulement par tests empiriques, mais à l'aide d'un modèle mathématique ou logique. Dans les systèmes critiques, cette démarche est particulièrement utile, car une simple exécution correcte ne suffit pas à garantir que \emph{tous} les comportements possibles respectent les contraintes de sûreté.
+
+Dans notre cas, la vérification formelle intervient à deux niveaux :
+\begin{itemize}
+    \item au niveau \textbf{spécification}, avec l'écriture de propriétés de sûreté et de vivacité en LTL ;
+    \item au niveau \textbf{modélisation}, avec la traduction du système Akka vers un réseau de Pétri et l'exploration de son espace d'états.
+\end{itemize}
+
+Cette approche est classique dans l'étude des systèmes concurrents : on part d'une implémentation ou d'une architecture logicielle, puis on construit un modèle plus abstrait permettant d'analyser les interblocages, les séquences d'exécution et les invariants.
+
+\subsection{Pourquoi les réseaux de Pétri sont adaptés ici}
+
+Les réseaux de Pétri sont particulièrement adaptés à la modélisation des systèmes distribués et concurrents, car ils permettent de représenter explicitement :
+\begin{itemize}
+    \item des \textbf{états} sous forme de places ;
+    \item des \textbf{changements d'état} sous forme de transitions ;
+    \item des \textbf{ressources partagées} via la présence ou l'absence de jetons ;
+    \item des \textbf{séquences concurrentes} et des conflits d'accès à une ressource.
+\end{itemize}
+
+Dans notre projet, la piste constitue précisément une ressource critique partagée. Le réseau de Pétri fournit donc un cadre naturel pour représenter l'exclusion mutuelle, l'attente, la réservation puis l'occupation effective de cette ressource.
+
+Le choix d'un modèle de Pétri est également cohérent avec l'objectif du sujet, qui insiste sur l'analyse de propriétés structurelles comme l'absence de deadlocks, la cohérence des transitions et la conservation d'invariants métier.
+
+\subsection{Articulation entre Akka Typed, Pétri et LTL}
+
+Akka Typed apporte une modélisation opérationnelle claire du système distribué : les acteurs échangent des messages, évoluent localement et coopèrent pour gérer l'accès à la piste. Cette couche représente le \textbf{comportement exécutable} du projet.
+
+Le réseau de Pétri constitue quant à lui une \textbf{abstraction formelle} de ce comportement. Il ne cherche pas à reproduire chaque détail d'implémentation, mais à capturer les états significatifs et les transitions critiques nécessaires au raisonnement.
+
+Enfin, la LTL joue ici le rôle de \textbf{langage de spécification}. Elle permet d'exprimer proprement ce que l'on attend du système sur la durée : certaines situations ne doivent jamais arriver, d'autres doivent finir par se produire. Le projet ne met pas en œuvre un model checker LTL complet, mais il s'appuie sur la LTL pour définir précisément les propriétés qui guident l'analyse.
+
+\subsection{Positionnement bibliographique}
+
+Notre travail s'inscrit dans une base théorique volontairement ciblée :
+\begin{itemize}
+    \item la documentation officielle d'Akka Typed pour les aspects acteurs, supervision et communication typée ;
+    \item les travaux classiques sur les réseaux de Pétri pour les propriétés structurelles et l'analyse des comportements concurrents ;
+    \item les ouvrages de logique en informatique pour la formalisation en logique temporelle.
+\end{itemize}
+
+Ce cadrage nous permet de rester cohérents avec le niveau attendu par le module tout en reliant clairement l'implémentation logicielle, la modélisation formelle et la formulation des propriétés.
+
 
 \section{Architecture du système Akka / Scala}
 
@@ -314,16 +365,19 @@ Dans le scénario nominal, un avion autorisé doit finir par atteindre l'état \
 
 \section{Formalisation LTL}
 
+
 \subsection{Pourquoi utiliser la LTL}
 
 La logique temporelle linéaire (LTL) permet de formaliser les garanties attendues d'un système concurrent. Dans ce projet, elle est utilisée comme \textbf{langage de spécification} : elle ne sert pas à implémenter un model checker complet, mais à écrire proprement les propriétés que notre système doit respecter.
 
-Nous vérifions ensuite ces propriétés, ou leurs équivalents opérationnels, à travers :
+Nous n'affirmons donc pas avoir \textbf{model-checké directement} toutes les formules LTL écrites dans ce rapport. En revanche, ces formules servent de référence conceptuelle pour orienter :
 \begin{itemize}
-    \item les invariants sur le modèle Akka ;
-    \item les tests automatisés ;
-    \item l'exploration de l'espace d'états du réseau de Pétri.
+    \item les invariants contrôlés dans le modèle ;
+    \item les scénarios validés par tests ;
+    \item les propriétés observées lors de l'exploration d'espace d'états.
 \end{itemize}
+
+Autrement dit, la LTL joue ici un rôle de \textbf{spécification rigoureuse} et de \textbf{guide méthodologique}.
 
 \subsection{Propositions atomiques}
 
@@ -403,10 +457,74 @@ Il est important de préciser que notre travail n'implémente pas un \textbf{mod
     \item formalisation des propriétés en LTL ;
     \item abstraction du système en réseau de Pétri ;
     \item exploration exhaustive de l'espace d'états ;
-    \item contrôle des invariants, des deadlocks et de l'atteignabilité des états terminaux.
+    \item contrôle des invariants, des deadlocks et de l'atteignabilité des états terminaux ;
+    \item confrontation avec les scénarios observés dans l'implémentation Akka.
 \end{enumerate}
 
-Cette démarche reste cohérente avec le cadre du sujet et suffisante pour démontrer la rigueur de la modélisation choisie.
+Cette démarche reste cohérente avec le cadre du sujet, à condition de bien distinguer :
+\begin{itemize}
+    \item ce qui est \textbf{spécifié} en LTL ;
+    \item ce qui est \textbf{vérifié directement} par l'analyseur et les tests ;
+    \item ce qui est \textbf{soutenu indirectement} par la cohérence entre modèle formel et implémentation.
+\end{itemize}
+
+\subsection{Portée réelle de la vérification}
+
+Dans la version actuelle du projet, les résultats obtenus permettent d'établir directement :
+\begin{itemize}
+    \item le respect d'invariants structurels sur les états explorés ;
+    \item l'absence de deadlock non terminal détecté dans le scénario nominal ;
+    \item l'atteignabilité d'un état terminal correct où tous les avions sont au sol ;
+    \item la cohérence globale entre les principales transitions Akka et le réseau de Pétri.
+\end{itemize}
+
+En revanche, nous ne prétendons pas démontrer au sens fort toutes les propriétés LTL sur tous les chemins possibles comme le ferait un model checker dédié. Les formules LTL doivent donc être comprises comme une \textbf{spécification formelle de référence}, dont plusieurs conséquences sont ensuite vérifiées par exploration d'états et par validation expérimentale.
+
+
+
+\section{Comparaison entre simulation Akka et modèle formel}
+
+Le sujet demande non seulement de simuler le système distribué, mais aussi de comparer le comportement observé avec le modèle formel. Cette comparaison est importante, car elle permet de vérifier que le réseau de Pétri ne constitue pas une abstraction déconnectée du code, mais bien une représentation fidèle des comportements critiques.
+
+\subsection{Principe de la comparaison}
+
+La simulation Akka fait apparaître une suite concrète d'événements : demandes d'atterrissage, mise en attente, réservation, occupation de la piste, fin de manœuvre puis libération. Le réseau de Pétri reprend cette logique sous forme de transitions abstraites. L'objectif n'est pas d'obtenir une identité parfaite message par message, mais une correspondance cohérente entre :
+\begin{itemize}
+    \item les \textbf{états métier} observés dans le code ;
+    \item les \textbf{changements d'état} représentés dans le réseau ;
+    \item les \textbf{propriétés} que l'on cherche à vérifier.
+\end{itemize}
+
+\subsection{Lecture comparée d'un scénario nominal}
+
+Le tableau suivant illustre cette correspondance sur un scénario typique avec plusieurs avions et une seule piste.
+
+\begin{longtable}{>{\bfseries}p{1.1cm} p{4.6cm} p{3.2cm} p{5.6cm}}
+\toprule
+Étape & Observation côté Akka & Transition / état côté Pétri & Intérêt pour la vérification \\
+\midrule
+1 & Un avion en vol envoie \texttt{DemandeAtterrissage} à la tour & $T1 : EnVol \rightarrow EnAttente$ & Le système prend en charge une demande explicite et fait entrer l'avion dans le processus \\
+2 & La tour constate que la piste est libre et demande une réservation & préparation de $T2$ avec présence de \texttt{PisteLibre} & Vérifie que l'autorisation n'est pas donnée sans disponibilité de la ressource \\
+3 & La piste confirme la réservation et la tour envoie \texttt{AutorisationAccordee} & $T2 : EnAttente + PisteLibre \rightarrow Autorise + PisteReservee$ & Lie l'autorisation à la réservation préalable \\
+4 & L'avion autorisé envoie \texttt{Occuper} et commence sa manœuvre & $T4 : Autorise + PisteReservee \rightarrow AtterrissageEnCours + PisteOccupee$ & Vérifie la cohérence entre l'état avion et l'état de la piste \\
+5 & Si un autre avion demande pendant ce temps, il reçoit \texttt{MiseEnAttente} & $T3 : EnAttente \rightarrow DansFile$ & Représente le traitement concurrent sans double occupation \\
+6 & L'avion termine et la tour envoie \texttt{Liberer} à la piste & $T5$ puis $T6$ & Vérifie la progression vers \texttt{AuSol} et le retour de la piste à l'état libre \\
+7 & Si des avions attendent, la tour traite le suivant selon l'ordre FIFO & $T7 : DansFile + PisteLibre \rightarrow Autorise + PisteReservee$ & Représente la reprise ordonnée de la file d'attente \\
+\bottomrule
+\end{longtable}
+
+\subsection{Ce que montre réellement cette comparaison}
+
+Cette comparaison permet d'affirmer que les \textbf{mécanismes critiques du code} sont bien repris dans le modèle formel :
+\begin{itemize}
+    \item l'exclusion mutuelle autour de la piste ;
+    \item la distinction entre réservation et occupation ;
+    \item la gestion de l'attente lorsque la ressource n'est pas disponible ;
+    \item la progression nominale jusqu'à l'état terminal.
+\end{itemize}
+
+Elle montre aussi les limites de l'abstraction choisie. Le réseau de Pétri utilisé ici est \textbf{agrégé} : il capture correctement la dynamique globale, mais il ne distingue pas chaque avion par son identité propre dans le marquage. En conséquence, certaines propriétés fines, comme l'ordre FIFO au niveau individuel, sont davantage validées par les \textbf{tests Akka} que par la seule structure du réseau.
+
 
 \section{Implémentation des tests}
 
@@ -443,6 +561,7 @@ L'intérêt du jeu de tests est double :
 
 Le choix d'inclure des tests avec de vrais avions est particulièrement important, car il permet de vérifier non seulement la logique de la tour et de la piste, mais aussi l'enchaînement réel des messages dans un scénario complet.
 
+
 \section{Analyseur formel et résultats}
 
 L'analyseur du réseau de Pétri effectue une exploration en largeur (BFS) de l'espace d'états à partir du marquage initial.
@@ -450,18 +569,42 @@ L'analyseur du réseau de Pétri effectue une exploration en largeur (BFS) de l'
 Dans notre modèle :
 \begin{itemize}
     \item le nombre d'avions est fixé à 3 ;
-    \item chaque transition modifie le marquage conformément au protocole Akka ;
-    \item les invariants sont vérifiés sur chaque état exploré ;
-    \item les états sans successeur sont analysés pour détecter un éventuel deadlock non terminal.
+    \item chaque transition modifie le marquage conformément au protocole Akka abstrait ;
+    \item les invariants sont contrôlés sur chaque état exploré ;
+    \item les états sans successeur sont examinés afin de détecter un éventuel deadlock non terminal.
 \end{itemize}
 
-Cette analyse permet de confirmer les points suivants dans le scénario nominal :
+\subsection{Résultats établis directement}
+
+Dans le cadre du \textbf{modèle agrégé} et du \textbf{scénario nominal} exploré, l'analyse permet d'établir directement les points suivants :
 \begin{itemize}
-    \item aucune violation des invariants définis n'est détectée ;
-    \item aucun deadlock non terminal n'apparaît ;
-    \item un état terminal où tous les avions sont au sol est atteignable ;
-    \item la piste est bien libérée à la fin des scénarios explorés.
+    \item aucune violation des invariants définis n'est détectée sur les états parcourus ;
+    \item aucun deadlock non terminal n'est observé dans l'espace d'états exploré ;
+    \item un état terminal correct où tous les avions sont au sol est atteignable ;
+    \item la piste redevient libre à l'issue des scénarios terminaux atteints.
 \end{itemize}
+
+\subsection{Interprétation des résultats}
+
+Ces résultats sont importants, car ils montrent que le modèle ne produit pas de séquence nominale incohérente et qu'il existe bien une progression complète du système vers un état final correct.
+
+En revanche, nous formulons volontairement ces conclusions avec prudence :
+\begin{itemize}
+    \item l'analyseur ne constitue pas un model checker LTL générique ;
+    \item certaines propriétés de vivacité sont \textbf{approchées} à partir de l'atteignabilité et de la cohérence des transitions, plutôt que prouvées au sens temporel fort sur tous les chemins ;
+    \item le caractère agrégé du modèle limite l'analyse de propriétés dépendant d'identités individuelles.
+\end{itemize}
+
+\subsection{Apport de l'analyseur dans le projet}
+
+L'intérêt de l'analyseur est donc double :
+\begin{itemize}
+    \item fournir une \textbf{vérification structurée} d'invariants et d'absence de deadlocks non terminaux ;
+    \item renforcer la crédibilité du projet en montrant que le comportement concurrent implémenté dans Akka possède une \textbf{abstraction formelle exploitable}.
+\end{itemize}
+
+Ainsi, l'analyseur ne remplace pas les tests ni un outil complet de model checking, mais il constitue une étape pertinente de validation formelle, cohérente avec le niveau et les objectifs du projet.
+
 
 \section{Limites du projet}
 
@@ -503,14 +646,17 @@ L'intérêt principal du travail réalisé réside dans l'articulation entre :
 
 Au final, le projet montre qu'il est possible de construire un système critique simple mais rigoureux, de le rendre vérifiable et d'en justifier le comportement sans tomber dans une complexité excessive.
 
-\section*{Bibliographie minimale}
-\addcontentsline{toc}{section}{Bibliographie minimale}
+
+\section*{Bibliographie de référence}
+\addcontentsline{toc}{section}{Bibliographie de référence}
 
 \begin{itemize}
-    \item Documentation Akka Typed.
-    \item T. Murata, \emph{Petri Nets: Properties, Analysis and Applications}.
-    \item M. Huth, M. Ryan, \emph{Logic in Computer Science}.
-    \item Cours et consignes du module.
+    \item Documentation officielle \emph{Akka Typed} : acteurs typés, supervision, communication par messages et tests d'acteurs.
+    \item T. Murata, \emph{Petri Nets: Properties, Analysis and Applications}. Référence classique sur les propriétés structurelles et comportementales des réseaux de Pétri.
+    \item M. Huth, M. Ryan, \emph{Logic in Computer Science}. Ouvrage de référence pour la logique temporelle, la vérification et le raisonnement sur les systèmes.
+    \item K. Jensen, L. M. Kristensen, \emph{Coloured Petri Nets}. Référence utile pour le positionnement général des réseaux de Pétri dans la modélisation des systèmes concurrents.
+    \item Cours, consignes du module et supports pédagogiques du projet, utilisés pour cadrer le périmètre méthodologique retenu.
 \end{itemize}
+
 
 \end{document}
