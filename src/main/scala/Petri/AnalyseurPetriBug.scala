@@ -1,5 +1,3 @@
-package Petri
-
 //> using scala 3
 
 package verification
@@ -129,9 +127,8 @@ object AnalyseurPetriBug {
   def t6(m: Marquage): Option[Marquage] =
     if (m.pisteOccupee == 1)
       Some(m.copy(
-        pisteOccupee = 0,
-       pisteLibre = 1
-       ))
+        pisteOccupee = 0, 
+        pisteLibre = 1))
     else None
 
   def t7(m: Marquage): Option[Marquage] =
